@@ -1,5 +1,6 @@
 import plotly.graph_objects as go
 from dash import dcc, html
+from src.ui import icon
 
 ORDER = ["Positive", "Neutral", "Negative"]
 COLORS = {"Positive": "#38f2b3", "Neutral": "#8da2ff", "Negative": "#ff5c8a"}
@@ -177,7 +178,7 @@ def build_panel(lang, clean, report, mode):
     tiles = html.Div([total_tile] + [sentiment_tile(k, int(counts[k]), float(shares[k]), lang) for k in ORDER], className="sent-grid")
 
     insight_parts = [
-        html.Span("✨", className="insight-icon"),
+        icon("sparkles", "insight-icon"),
         html.Span([f"{t['dominant']}: ", html.B(t["names"][top], style={"color": COLORS[top]}), " ", t["dominant_tail"].format(pct=pct_text(float(shares[top]), lang))]),
     ]
     if mode == "pred" and "Do_tin_cay" in clean:

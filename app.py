@@ -2,13 +2,17 @@ from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 
 from src import atlas, explorer, lab, pipeline
-from src.i18n import APP_NAME, AUTHOR_ID, AUTHOR_NAME, STACK, TEXT
+from src.i18n import APP_NAME, STACK, STEP_TONES, TEXT
+from src.ui import icon, icon3d, index_string
 
 FILTER_KEYS = ("category", "language", "sentiment", "query", "sort")
 DEFAULT_UI = {"mode": "pred", "stat": "mean", "category": [], "language": [], "sentiment": [], "query": "", "sort": "recent", "page": 0, "playground": None}
 ROLE_ORDER = ["text", "label", "category", "language", "time", "likes", "comments", "shares"]
+ROLE_ICONS = {"text": "text", "label": "smile", "category": "tag", "language": "globe", "time": "clock", "likes": "thumb", "comments": "message", "shares": "share"}
+FEATURE_TONES = ["violet", "cyan", "mint", "pink"]
 
-app = Dash(__name__, title=f"{APP_NAME} | Sentiment Intelligence", update_title=None, suppress_callback_exceptions=True)
+app = Dash(__name__, title=f"{APP_NAME} | Sentiment Analytics", update_title=None, suppress_callback_exceptions=True)
+app.index_string = index_string()
 server = app.server
 
 
@@ -48,12 +52,25 @@ def build_landing(lang):
     hero = html.Section(
         className="hero reveal",
         children=[
-            html.Div(t["badge"], className="hero-badge"),
+            html.Div(html.Img(src="/assets/brand/logo-full.png", alt=APP_NAME, className="hero-logo-img"), className="hero-logo"),
             html.H1([html.Span(t["title_1"], className="title-line"), html.Span(t["title_2"], className="title-line title-gradient")], className="hero-title"),
             html.P(t["subtitle"], className="hero-sub"),
-            html.Div([html.A(t["cta"], href="#workspace", className="btn btn-primary"), html.A(t["cta_secondary"], href="#journey", className="btn btn-ghost")], className="hero-actions"),
-            html.Div([html.Div([html.Div(value, className="stat-value"), html.Div(label, className="stat-label")], className="stat") for value, label in t["stats"]], className="hero-stats"),
+            html.Div(
+                [html.A([t["cta"], icon("arrow")], href="#workspace", className="btn btn-primary"), html.A(t["cta_secondary"], href="#features", className="btn btn-ghost")],
+                className="hero-actions",
+            ),
         ],
+    )
+    features = html.Section(
+        id="features",
+        className="features reveal",
+        children=html.Div(
+            [
+                html.Div([icon3d(name, FEATURE_TONES[i]), html.H3(title, className="feature-title"), html.P(desc, className="feature-desc")], className="feature-card tilt")
+                for i, (name, title, desc) in enumerate(t["features"])
+            ],
+            className="feature-grid",
+        ),
     )
     journey = html.Section(
         id="journey",
@@ -64,53 +81,81 @@ def build_landing(lang):
             html.Div(
                 [
                     html.Div(
-                        [html.Div([html.Span(num, className="step-number"), html.Span(icon, className="step-icon")], className="step-top"), html.H3(title, className="step-title"), html.P(desc, className="step-desc")],
+                        [
+                            html.Div([html.Span(num, className="step-number"), html.Span(className="step-line")], className="step-top"),
+                            icon3d(icon_name, STEP_TONES[i], "icon3d-lg"),
+                            html.H3(title, className="step-title"),
+                            html.P(desc, className="step-desc"),
+                            html.Div([html.Span(tag, className="tag-chip") for tag in t["step_tags"][i]], className="tag-row"),
+                        ],
                         className="step-card tilt",
                     )
-                    for num, icon, title, desc in t["steps"]
+                    for i, (num, icon_name, title, desc) in enumerate(t["steps"])
                 ],
                 className="step-grid",
             ),
         ],
     )
-    return [hero, journey]
+    return [hero, features, journey]
 
 
 def build_footer(lang):
     t = TEXT[lang]
+    columns = []
+    for title, items in t["footer_cols"]:
+        entries = [html.A(item[0], href=item[1], className="footer-link") if isinstance(item, tuple) else html.Span(item, className="footer-item") for item in items]
+        columns.append(html.Div([html.Div(title, className="footer-head"), html.Div(entries, className="footer-list")], className="footer-col"))
     return html.Div(
         className="footer-inner",
         id="about",
         children=[
-            html.Div([html.Div([html.Span(className="brand-mark"), html.Span(APP_NAME, className="brand-name")], className="brand"), html.P(t["footer_about"], className="footer-text")], className="footer-col"),
-            html.Div([html.Div(t["footer_author"], className="footer-head"), html.P(AUTHOR_NAME, className="footer-text strong"), html.P(AUTHOR_ID, className="footer-text")], className="footer-col"),
+            html.Div(
+                [
+                    html.Div([html.Img(src="/assets/brand/logo-mark.png", alt=APP_NAME, className="footer-logo"), html.Span(APP_NAME, className="brand-name")], className="footer-brand"),
+                    html.P(t["footer_desc"], className="footer-text"),
+                    html.A([t["footer_cta"], icon("arrow")], href="#workspace", className="btn btn-primary btn-sm footer-cta"),
+                ],
+                className="footer-col footer-main",
+            ),
+            *columns,
             html.Div([html.Div(t["footer_stack"], className="footer-head"), html.Div([html.Span(item, className="chip") for item in STACK], className="chips")], className="footer-col"),
-            html.Div(f"© 2026 {APP_NAME}. {t['rights']}", className="footer-bottom"),
+            html.Div(
+                [html.Span(t["copyright"]), html.Span([html.Span(className="pulse-dot"), t["footer_status"]], className="footer-status")],
+                className="footer-bottom",
+            ),
         ],
     )
 
 
 def build_stepper(lang, step, unlocked, completed):
-    items = []
-    for index, (num, icon, title, _) in enumerate(TEXT[lang]["steps"], 1):
+    ws = TEXT[lang]["ws"]
+    cards = []
+    for index, (num, icon_name, title, _) in enumerate(TEXT[lang]["steps"], 1):
+        locked = index > unlocked
+        done = index <= completed
+        active = index == step
         state = ["step-chip"]
-        if index == step:
+        if active:
             state.append("active")
-        if index <= completed:
+        if done:
             state.append("done")
-        if index > unlocked:
+        if locked:
             state.append("locked")
-        badge = "✓" if index <= completed else ("🔒" if index > unlocked else icon)
-        items.append(
+        label = ws["status"]["active"] if active else (ws["status"]["done"] if done else (ws["status"]["locked"] if locked else ws["status"]["ready"]))
+        cards.append(
             html.Button(
-                [html.Span(badge, className="chip-badge"), html.Span([html.Span(num, className="chip-num"), html.Span(title, className="chip-title")], className="chip-text")],
+                [
+                    icon3d("lock" if locked else icon_name, STEP_TONES[index - 1], "icon3d-sm"),
+                    html.Span([html.Span(num, className="chip-num"), html.Span(title, className="chip-title"), html.Span(label, className="chip-status")], className="chip-text"),
+                ],
                 id={"type": "step-btn", "index": index},
                 className=" ".join(state),
-                disabled=index > unlocked,
+                disabled=locked,
                 n_clicks=0,
             )
         )
-    return items
+    progress = (unlocked - 1) / 4 * 100
+    return [html.Div(cards, className="stepper-rail", style={"--p": f"{progress:.0f}%"})]
 
 
 def build_nav_buttons(lang, step, unlocked):
@@ -128,7 +173,11 @@ def role_chips(lang, mapping):
         column = mapping.get(role)
         chips.append(
             html.Div(
-                [html.Span("✓" if column else "–", className="role-mark"), html.Span(ws["roles"][role], className="role-name"), html.Span(column if column else ws["missing"], className="role-col")],
+                [
+                    html.Span(icon(ROLE_ICONS[role]), className="role-ico"),
+                    html.Div([html.Div(ws["roles"][role], className="role-name"), html.Div(column if column else ws["missing"], className="role-col")], className="role-text"),
+                    html.Span(className="role-pulse"),
+                ],
                 className="role-chip found" if column else "role-chip",
             )
         )
@@ -148,7 +197,7 @@ def panel_launchpad(lang, raw):
         children=[
             html.Div(
                 [
-                    html.Div("🧬", className="source-icon"),
+                    icon3d("database", "violet", "icon3d-lg"),
                     html.H3(ws["sample_title"], className="source-title"),
                     html.P(ws["sample_desc"], className="source-desc"),
                     html.Button(ws["sample_btn"], id={"type": "act-btn", "index": "sample"}, className="btn btn-primary", n_clicks=0),
@@ -157,7 +206,7 @@ def panel_launchpad(lang, raw):
             ),
             html.Div(
                 [
-                    html.Div("☁️", className="source-icon"),
+                    icon3d("upload", "cyan", "icon3d-lg"),
                     html.H3(ws["upload_title"], className="source-title"),
                     dcc.Upload(
                         id={"type": "upload", "index": "csv"},
@@ -167,7 +216,6 @@ def panel_launchpad(lang, raw):
                         className="upload-zone",
                         children=[html.Div(ws["upload_drop"], className="upload-main"), html.Div(ws["upload_or"], className="upload-sub")],
                     ),
-                    html.P(ws["upload_hint"], className="source-hint"),
                 ],
                 className="source-card tilt",
             ),
@@ -175,7 +223,7 @@ def panel_launchpad(lang, raw):
     )
     blocks = [html.Div([html.H2(ws["s1_title"], className="panel-title"), html.P(ws["s1_sub"], className="panel-sub")], className="panel-head"), sources]
     if raw and raw.get("error"):
-        blocks.append(html.Div([html.Span("⚠️"), html.Span(ws["err_no_text"] if raw["error"] == "no_text" else ws["err_read"])], className="notice notice-error"))
+        blocks.append(html.Div([icon("alert"), html.Span(ws["err_no_text"] if raw["error"] == "no_text" else ws["err_read"])], className="notice notice-error"))
     elif raw:
         name = ws["source_sample"] if raw["source"] == "sample" else raw["name"]
         blocks.append(
@@ -184,7 +232,7 @@ def panel_launchpad(lang, raw):
                 children=[
                     html.Div(
                         [
-                            html.Span("✅", className="loaded-icon"),
+                            html.Span(className="status-ring"),
                             html.Div([html.Div(ws["loaded_title"], className="loaded-title"), html.Div(name, className="loaded-name")]),
                             html.Div([html.Span(f"{number(raw['rows'], lang)} {ws['rows']}", className="chip"), html.Span(f"{number(raw['cols'], lang)} {ws['cols']}", className="chip")], className="loaded-chips"),
                         ],
@@ -210,7 +258,10 @@ def panel_refinery(lang, raw, report):
     if not raw or raw.get("error"):
         return [head]
     stages = html.Div(
-        [html.Div([html.Div(icon, className="stage-icon"), html.H3(title, className="stage-title"), html.P(desc, className="stage-desc")], className="stage-card") for icon, title, desc in ws["stages"]],
+        [
+            html.Div([icon3d(icon_name, STEP_TONES[i], "icon3d-md"), html.H3(title, className="stage-title"), html.P(desc, className="stage-desc")], className="stage-card tilt")
+            for i, (icon_name, title, desc) in enumerate(ws["stages"])
+        ],
         className="stage-grid",
     )
     if not report:
@@ -232,7 +283,7 @@ def panel_refinery(lang, raw, report):
     sample_table = html.Div(html.Table([html.Thead(html.Tr([html.Th(ws["before"]), html.Th(ws["after"])])), html.Tbody(sample_rows)], className="data-table"), className="table-wrap")
     blocks = [
         head,
-        html.Div([html.Span("🎉"), html.Span(ws["ready"])], className="notice notice-success"),
+        html.Div([icon("sparkles"), html.Span(ws["ready"])], className="notice notice-success"),
         html.Div(tiles, className="kpi-grid"),
     ]
     if report["agreement"] is not None:
@@ -243,25 +294,25 @@ def panel_refinery(lang, raw, report):
             )
         )
     else:
-        blocks.append(html.Div([html.Span("ℹ️"), html.Span(ws["no_label"])], className="notice notice-info"))
+        blocks.append(html.Div([icon("info"), html.Span(ws["no_label"])], className="notice notice-info"))
     blocks += [html.Div(ws["samples"], className="mini-head"), sample_table]
     return blocks
 
 
 def panel_coming(lang, step, report):
     ws = TEXT[lang]["ws"]
-    num, icon, title, desc = TEXT[lang]["steps"][step - 1]
+    num, icon_name, title, desc = TEXT[lang]["steps"][step - 1]
     rows = number(report["rows_out"], lang) if report else "0"
     return [
         html.Div(
             className="coming-card",
             children=[
-                html.Div(icon, className="coming-icon"),
+                icon3d(icon_name, STEP_TONES[step - 1], "icon3d-xl"),
                 html.H2(title, className="panel-title"),
                 html.P(desc, className="panel-sub"),
                 html.Div(ws["coming_title"], className="coming-badge"),
                 html.P(ws["coming_sub"], className="source-hint"),
-                html.Div([html.Span("✓"), html.Span(f"{ws['data_ready']}: {rows} {ws['posts']}")], className="coming-ready"),
+                html.Div([html.Span(className="pulse-dot"), html.Span(f"{ws['data_ready']}: {rows} {ws['posts']}")], className="coming-ready"),
             ],
         )
     ]
@@ -270,11 +321,7 @@ def panel_coming(lang, step, report):
 app.layout = html.Div(
     className="app-shell",
     children=[
-        html.Div(className="aurora"),
-        html.Div(className="stars"),
-        html.Div(className="orb orb-a"),
-        html.Div(className="orb orb-b"),
-        html.Div(className="orb orb-c"),
+        html.Div(id="top"),
         dcc.Store(id="step-store", data=1),
         dcc.Store(id="raw-store"),
         dcc.Store(id="clean-store"),
@@ -284,8 +331,12 @@ app.layout = html.Div(
         html.Header(
             className="site-header",
             children=[
-                html.A([html.Span(className="brand-mark"), html.Div([html.Span(APP_NAME, className="brand-name"), html.Span(id="brand-tagline", className="brand-tagline")], className="brand-text")], href="#", className="brand"),
-                html.Nav(id="nav-links", className="nav"),
+                html.A(
+                    [html.Img(src="/assets/brand/logo-mark.png", alt=APP_NAME, className="brand-img"), html.Div([html.Span(APP_NAME, className="brand-name"), html.Span(id="brand-tagline", className="brand-tagline")], className="brand-text")],
+                    href="#top",
+                    className="brand",
+                ),
+                html.Div([html.Div(className="nav-glow"), html.Nav(id="nav-links", className="nav")], className="nav-dock"),
                 dcc.RadioItems(
                     id="lang-switch",
                     options=[{"label": "VI", "value": "vi"}, {"label": "EN", "value": "en"}],
@@ -305,7 +356,7 @@ app.layout = html.Div(
                 html.Div(id="stepper", className="stepper"),
                 dcc.Loading(
                     type="circle",
-                    color="#7c5cff",
+                    color="#8b6cff",
                     children=html.Div(id="step-panel", className="step-panel"),
                 ),
                 html.Div(id="step-nav", className="step-nav"),
@@ -327,7 +378,7 @@ app.layout = html.Div(
 def render_language(lang):
     lang = lang if lang in TEXT else "vi"
     ws = TEXT[lang]["ws"]
-    head = [html.H2(ws["title"], className="section-title"), html.P(ws["sub"], className="section-sub")]
+    head = [html.H2(ws["title"], className="section-title")]
     return TEXT[lang]["tagline"], build_nav(lang), build_landing(lang), build_footer(lang), head
 
 
@@ -456,8 +507,8 @@ def download_filtered(n_clicks, clean, report, ui):
     if trigger is None or trigger["index"] != "download" or not ctx.triggered[0]["value"] or not clean:
         raise PreventUpdate
     frame = explorer.filter_frame(pipeline.unpack_clean(clean), ui or DEFAULT_UI, bool((report or {}).get("has_label")))
-    return dcc.send_data_frame(explorer.export_frame(frame).to_csv, "sentiverse_bai_dang_da_loc.csv", index=False, encoding="utf-8-sig")
+    return dcc.send_data_frame(explorer.export_frame(frame).to_csv, "vibelens_bai_dang_da_loc.csv", index=False, encoding="utf-8-sig")
 
 
 if __name__ == "__main__":
-    app.run(debug=False, host="127.0.0.1", port=8050)
+    app.run(debug=True, dev_tools_ui=False, dev_tools_props_check=False, host="127.0.0.1", port=8050)

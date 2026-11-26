@@ -5,6 +5,7 @@ from plotly.subplots import make_subplots
 from scipy.stats import kruskal
 
 from src.atlas import COLORS, ORDER, TEXT as ATLAS_TEXT, base_layout, whole
+from src.ui import icon
 
 METRICS = ["Likes", "Comments", "Shares"]
 ROLE_OF = {"Likes": "likes", "Comments": "comments", "Shares": "shares"}

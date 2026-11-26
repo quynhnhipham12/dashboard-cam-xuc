@@ -7,6 +7,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from src import pipeline
 from src.atlas import COLORS, ORDER, TEXT as ATLAS_TEXT, base_layout, countup, pct_text, whole
 from src.lab import hex_rgba
+from src.ui import icon, icon3d
 
 PAGE_SIZE = 10
 SORTS = ["recent", "likes", "conf"]
@@ -205,7 +206,7 @@ def post_row(row, show_true):
         html.Td(row["Noi_dung"], className="post-text", title=row["Noi_dung"]),
         html.Td([html.Div(row["Danh_muc"]), html.Div(row["Ngon_ngu"], className="sub-cell")]),
         html.Td("–" if pd.isna(stamp) else f"{stamp:%Y-%m-%d}", className="nowrap"),
-        html.Td(f"👍{int(row['Likes']):,} 💬{int(row['Comments']):,} 🔁{int(row['Shares']):,}", className="nowrap eng-cell"),
+        html.Td([html.Span([icon("thumb"), f"{int(row['Likes']):,}"], className="eng-item"), html.Span([icon("message"), f"{int(row['Comments']):,}"], className="eng-item"), html.Span([icon("share"), f"{int(row['Shares']):,}"], className="eng-item")], className="nowrap eng-cell"),
         html.Td(badge(row["Cam_xuc_du_doan"])),
     ]
     if show_true:
@@ -221,7 +222,7 @@ def post_row(row, show_true):
 def playground_card(t, ui, lang):
     result = (ui or {}).get("playground")
     blocks = [
-        html.Div([html.Span("🧠", className="play-icon"), html.Div([html.H3(t["play_title"], className="source-title"), html.P(t["play_sub"], className="source-hint")])], className="play-head"),
+        html.Div([icon3d("cpu", "violet", "icon3d-md"), html.Div([html.H3(t["play_title"], className="source-title"), html.P(t["play_sub"], className="source-hint")])], className="play-head"),
         dcc.Textarea(id={"type": "field", "index": "playground"}, value=(result or {}).get("text", "") if isinstance(result, dict) else "", placeholder=t["play_ph"], className="play-input"),
         html.Button(t["play_btn"], id={"type": "act-btn", "index": "predict"}, className="btn btn-primary btn-sm", n_clicks=0),
     ]
@@ -294,7 +295,7 @@ def build_panel(lang, clean, report, ui):
     blocks = [head, filters]
 
     if matched == 0:
-        blocks.append(html.Div([html.Span("🔎"), html.Span(t["empty"])], className="notice notice-info"))
+        blocks.append(html.Div([icon("search"), html.Span(t["empty"])], className="notice notice-info"))
         blocks.append(playground_card(t, ui, lang))
         return blocks
 
@@ -311,7 +312,7 @@ def build_panel(lang, clean, report, ui):
             html.Div(
                 [
                     html.Div(t["kpi_avg"], className="sent-name"),
-                    html.Div([html.Div([html.Span("👍"), html.B(f"{averages['Likes']:.1f}".replace(".", "," if lang == "vi" else "."))], className="avg-item"), html.Div([html.Span("💬"), html.B(f"{averages['Comments']:.1f}".replace(".", "," if lang == "vi" else "."))], className="avg-item"), html.Div([html.Span("🔁"), html.B(f"{averages['Shares']:.1f}".replace(".", "," if lang == "vi" else "."))], className="avg-item")], className="avg-row"),
+                    html.Div([html.Div([icon("thumb"), html.B(f"{averages['Likes']:.1f}".replace(".", "," if lang == "vi" else "."))], className="avg-item"), html.Div([icon("message"), html.B(f"{averages['Comments']:.1f}".replace(".", "," if lang == "vi" else "."))], className="avg-item"), html.Div([icon("share"), html.B(f"{averages['Shares']:.1f}".replace(".", "," if lang == "vi" else "."))], className="avg-item")], className="avg-row"),
                 ],
                 className="sent-tile tilt sent-neutral avg-tile",
             ),
